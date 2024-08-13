@@ -61,7 +61,7 @@ def plot(train_history):
     plt.show()
 
 
-def download_firebase_dir():
+def download_firebase_train():
     storage_dir = [f"drives/2W5Nq5aZ4cP9VA6zEWBbi7FicxE2/", f"drives/lT3ip6zL8gU34vuoONy5UTmWwPg1", f"drives/vcAN0KURuBYtNhztFCJJR9y4EhR2"] # Add new directories (people) here
     local_path = f"/Users/arnoldcheskis/Documents/Projects/Archive/LimudNaim/Driving_project_lesson-LimudNaim/data/"
 
@@ -153,7 +153,7 @@ def window(X1, y1):
     
     Xt = np.array(X1)
     yt= np.array(y1).reshape(-1,1)
-
+    
     # for over the 263920  310495in jumps of 64
     for i in range(0, n , T-overlapsize):
         # grab from i to i+length
@@ -215,7 +215,7 @@ def normalizing_2d(X):
         
 
 
-def mlp_model():
+def mlp_model(y_test):
     mlp = Sequential()
     #TODO Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
     #TODO mlp.add(Input(shape=(16,)))
@@ -229,7 +229,7 @@ def mlp_model():
 
 
 
-def deep_lstm_model():
+def deep_lstm_model(y_test):
     model = Sequential(
         [
             Input(shape=(T, PROPS)), #ragged=True
@@ -245,104 +245,108 @@ def deep_lstm_model():
     return model
 
 
-#ARC300
+
 
 T           = 16
 LR          = 0.1
 EPOCHS      = 3
 PROPS       = 8 #Properties of the drivers
 TRAIN_SIZE  = 0.85
-# download_firebase_dir() #Call only once
-files = parse_files()
-X, y = pre_process_encoder(files)
+
+def main():
+    # download_firebase_train() #Call only once
+    files = parse_files()
+    X, y = pre_process_encoder(files)
 
 
-# X_train, X_test, y_train, y_test =train_test_split(X, y, train_size=0.85,shuffle=False)
+    # X_train, X_test, y_train, y_test =train_test_split(X, y, train_size=0.85,shuffle=False)
 
 
-# X_train,  y_train = shuffle(X_train, y_train)
+    # X_train,  y_train = shuffle(X_train, y_train)
 
 
-X_train_5, y_train_5, X_test_5,y_test_5 = rnn_dimension(X,y, TRAIN_SIZE)
+    X_train_5, y_train_5, X_test_5,y_test_5 = rnn_dimension(X,y, TRAIN_SIZE)
 
 
-y_dummy = to_categorical(y)
+    y_dummy = to_categorical(y)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y_dummy, train_size=0.85, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y_dummy, train_size=0.85, shuffle=False)
 
-X_train_scaled = np.copy(normalizing_2d(X_train)) #TODO RuntimeWarning: invalid value encountered
+    X_train_scaled = np.copy(normalizing_2d(X_train)) #TODO RuntimeWarning: invalid value encountered
 
-X_train, X_test_, y_train, y_test_ = train_test_split(X_train_scaled, y_train, train_size=0.99, shuffle=True)
+    X_train, X_test_, y_train, y_test_ = train_test_split(X_train_scaled, y_train, train_size=0.99, shuffle=True)
 
+    
 
+    # mask_n = np.array([not np.array_equal(label, [0.0, 0.0, 1.0]) for label in y_train])
+    # mask = np.array([np.array_equal(label, [0.0, 0.0, 1.0]) for label in y_train])
+    # x_filtered = X_train[mask_n]
+    # y_filtered = y_train[mask_n]
 
-# mask_n = np.array([not np.array_equal(label, [0.0, 0.0, 1.0]) for label in y_train])
-# mask = np.array([np.array_equal(label, [0.0, 0.0, 1.0]) for label in y_train])
-# x_filtered = X_train[mask_n]
-# y_filtered = y_train[mask_n]
-
-# x_filtered_test = X_train[mask]
-# y_filtered_test = y_train[mask]
-
-
-model_file = 'mlp_model.keras'
-if os.path.isfile(model_file):
-    mlp = models.load_model(model_file)
-if True:
-# else:
-    mlp = deep_lstm_model()
-    optimizer = Adam(learning_rate=LR, clipvalue=1.0)
-    mlp.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-    mlp_history = mlp.fit(X_train_5, y_train_5, epochs=EPOCHS, batch_size=T)
-    mlp.save(model_file)
-    plot(mlp_history)
+    # x_filtered_test = X_train[mask]
+    # y_filtered_test = y_train[mask]
 
 
-
-
-# TODO turn to a function
-X_test_normalized = normalizing_2d(X_test_)
-score = mlp.evaluate(X_test_5, y_test_5) # batch_size=50
-
-print('Test loss:', score[0])
-print('Test accuracy:', score[1])
-
-#TODO ! - next time- merge data to make SEQUENTIAL - the model should know it's related!
-df = [[pd.read_csv('test.csv')]]
-user_props, _ = pre_process_encoder(df)
-user = [1 for _ in range(len(user_props)-1)]
-x, y, _, _ = rnn_dimension(user_props,user, 1)
-print(f'output after training = {mlp.predict(x)[-1]} \n {mlp.predict(x)[0]}')
-
-# print("actual values : \n", y_test_5[0:25])
-
-
-# print('X_test = \n', X_test_5[0:)
+    model_file = 'mlp_model.keras'
+    if os.path.isfile(model_file):
+        mlp = models.load_model(model_file)
+    if True:
+    # else:
+        mlp = deep_lstm_model(y_test)
+        optimizer = Adam(learning_rate=LR, clipvalue=1.0)
+        mlp.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        mlp_history = mlp.fit(X_train_5, y_train_5, epochs=EPOCHS, batch_size=T)
+        mlp.save(model_file)
+        plot(mlp_history)
 
 
 
-# count1 = sum(np.array_equal(element, [0.0, 0.0, 1.0]) for element in y_train)
-# count2 = sum(np.array_equal(element, [1.0, 0.0, 0.0]) for element in y_train)
-# count3 = sum(np.array_equal(element, [0.0, 1.0, 0.0]) for element in y_train)
 
-# print(count1)
-# print(count2)
-# print(count3)
+    # TODO turn to a function
+    X_test_normalized = normalizing_2d(X_test_)
+    score = mlp.evaluate(X_test_5, y_test_5) # batch_size=50
+
+    print('Test loss:', score[0])
+    print('Test accuracy:', score[1])
+
+    #TODO ! - next time- merge data to make SEQUENTIAL - the model should know it's related!
+    df = [[pd.read_csv('test.csv')]]
+    user_props, _ = pre_process_encoder(df)
+    user = [1 for _ in range(len(user_props)-1)]
+    x, y, _, _ = rnn_dimension(user_props,user, 1)
+    print(f'output after training = {mlp.predict(x)[-1]} \n {mlp.predict(x)[0]}')
+
+    # print("actual values : \n", y_test_5[0:25])
 
 
-#TODO test - pre-process a few rows from excel and see if they are predicted accurately
+    # print('X_test = \n', X_test_5[0:)
 
 
-#TODO - 
 
-''' TODO
-Plan - 
-1. Leave only 1 person - simplest case, so the accuracy would be ~ 1
-2. After it works - add a person
-3. train on very simple data to see the model works as we expect.
+    # count1 = sum(np.array_equal(element, [0.0, 0.0, 1.0]) for element in y_train)
+    # count2 = sum(np.array_equal(element, [1.0, 0.0, 0.0]) for element in y_train)
+    # count3 = sum(np.array_equal(element, [0.0, 1.0, 0.0]) for element in y_train)
 
-*. evaluate at each epoch and compare test performance based on the # of epochs
+    # print(count1)
+    # print(count2)
+    # print(count3)
 
-Z. model training - EPOCHS > 100, etc.
-'''
 
+    #TODO test - pre-process a few rows from excel and see if they are predicted accurately
+
+
+    #TODO - 
+
+    ''' TODO
+    Plan - 
+    1. Leave only 1 person - simplest case, so the accuracy would be ~ 1
+    2. After it works - add a person
+    3. train on very simple data to see the model works as we expect.
+
+    *. evaluate at each epoch and compare test performance based on the # of epochs
+
+    Z. model training - EPOCHS > 100, etc.
+    '''
+
+if __name__ == '__main__':
+    main()
