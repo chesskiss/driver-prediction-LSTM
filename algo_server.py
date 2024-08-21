@@ -19,7 +19,7 @@ model_file  = 'LSTM_model.keras'
 try: 
     model = models.load_model(model_file)
 except FileNotFoundError as e:
-    raise FileNotFoundError('Model not found - add the model.keras file to the dir.') from e
+    raise FileNotFoundError('Model not found - add the LSTM_model.keras file to the dir.') from e
 
 
 
@@ -42,10 +42,11 @@ def get_live_data():
                     obd_dict[obd_id] = int (list(obd_snapshot[obd_id].keys())[0])
                 print(f'Live drives: {obd_dict.keys()}')
             
-            lock = threading.Lock()
-            with lock:
-                thread = threading.Thread(target=run_algorithm, args=(obd_id,))
-                thread.start()
+            # lock = threading.Lock()
+            # with lock:
+            #     thread = threading.Thread(target=run_algorithm, args=(obd_id,))
+            #     thread.start()
+            run_algorithm(obd_id)
 
 
         time.sleep(20)  # Run this check every 20 seconds
@@ -55,20 +56,28 @@ def run_algorithm(obd_id):
     data =[]
     for _ in range(TIMESTAMPS):
         row_index = obd_dict[obd_id]
+        print(f' \nrow index = {row_index} \n')
         obd_ref = db.reference(f'{REAL_TIME_REFERANCE}/{obd_id}')
         obd_snapshot = obd_ref.get()
         # print(list(obd_snapshot.keys())[0])
         finished = False
 
+        new_data = []
         if isinstance(obd_snapshot, dict):
             if obd_snapshot and str(row_index) in list(obd_snapshot.keys()):
-                data.append(obd_snapshot[str(row_index)])
+                # data.append(obd_snapshot[str(row_index)])
+                for i in range(row_index, len(obd_snapshot)): 
+                    new_data.append(obd_snapshot[str(i)]) 
+                data.extend(new_data)
             else:
                 finished = True
 
         elif isinstance(obd_snapshot, list):
             if obd_snapshot and len(obd_snapshot) > row_index:
-                data.append(obd_snapshot[row_index])
+                # data.append(obd_snapshot[row_index])
+                for i in range(row_index, len(obd_snapshot)): 
+                    new_data.append(obd_snapshot[i]) 
+                data.extend(new_data)
             else:
                 finished = True
 
@@ -95,8 +104,10 @@ def run_algorithm(obd_id):
 
         uids        = ['2W5Nq5aZ4cP9VA6zEWBbi7FicxE2', 'lT3ip6zL8gU34vuoONy5UTmWwPg1', 'vcAN0KURuBYtNhztFCJJR9y4EhR2']
         
-
-        if len(data) <= 5 :
+        # print(f'\n\n our data : \n {data} \n\n')
+        print(f'\n{len(data)}\n')
+        obd_dict[obd_id] += len(obd_snapshot)
+        if len(data) >= 5 :
             input           = pre_process(data)
             prediction      = (model.predict(input))[0][-1]
             driver_result   = uids[np.argmax(prediction)]
@@ -104,23 +115,13 @@ def run_algorithm(obd_id):
             print(f'prediction= {prediction}' )
 
             print(f'driver result = \n {driver_result}')
-
-            # print(data[-1]['datetime']) # should print the last date and time from the data
-            # if 'rpm' in list(data[-1].keys()):
-            #     print(data[-1]['rpm'])  # should print the last rpm from the data
             
-            # for i in range(len(data)):
-            #     print(data[i]['speed'])  # should print all the speed data from the start until now
-            
-
-            # driver_result = 'lT3ip6zL8gU34vuoONy5UTmWwPg1' # end of the iteration, save the current result
-            obd_dict[obd_id] += 1
             db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set(driver_result)
             #time.sleep(1)
 
-        if max(prediction) > 0.8: #if prediction certainty is greater than 80%
-            return #TODO do we need to return a value? e.g. driver_result
-        #TODO change while True to a for loop after which car reported stolen (ideal), or add a "forth" driver to the model that will be the thief.
+        # if max(prediction) > 0.8: #if prediction certainty is greater than 80%
+        #     return #TODO do we need to return a value? e.g. driver_result
+        # #TODO change while True to a for loop after which car reported stolen (ideal), or add a "forth" driver to the model that will be the thief.
     
     db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set('STOLEN')
 
@@ -151,3 +152,12 @@ if __name__ == '__main__':
             time.sleep(1)
     except KeyboardInterrupt:
         print("Server stopped by user")
+
+
+def run_algorithm(obd_id):
+
+            
+
+        # מעדכנים את מונה השורות
+        obd_dict[obd_id] += len(new_data)
+        print(f'Collected {len(new_data)} new rows for OBD {obd_id}')

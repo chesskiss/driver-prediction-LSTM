@@ -68,13 +68,14 @@ def plot_data(x,y):
     df = x
     df['driver'] = y
     features = x.columns # List of features to plot
+    df['time'] = range(1, len(df) + 1)
 
     # Create a FacetGrid with 6 plots (one for each feature)
-    g = sns.FacetGrid(x.melt(id_vars=['timestamp', 'driver'], value_vars=features), 
+    g = sns.FacetGrid(x.melt(id_vars=['time', 'driver'], value_vars=features), 
                     col="variable", hue="driver", col_wrap=3, height=4)
 
     # Map the scatterplot to each facet
-    g.map(sns.scatterplot, "timestamp", "value", alpha=0.7)
+    g.map(sns.scatterplot, "time", "value", alpha=0.7)
 
 
     g.add_legend()
@@ -149,11 +150,8 @@ def pre_process_encoder():
     for i, person in enumerate(files):
         for data in person:
             df = pd.DataFrame(data)
-            # df['timestamp'] = df['timestamp']*(10**3)%(10**7)
-            # df['timestamp'] = df['timestamp']-df['timestamp'].min() #TODO delete these 2 lines
 
-            # x_sample = df.drop(columns=['datetime', 'fuel'] ).dropna()
-            x_sample = df.drop(columns=['datetime', 'fuel', 'speedLimit', 'acceleration', 'timestamp'] ).dropna()
+            x_sample = df.drop(columns=['datetime', 'fuel', 'speedLimit', 'timestamp'] ).dropna()
 
             y_sample = [i for _ in range(len(x_sample))]
 
@@ -200,8 +198,6 @@ def window(X1, y1):
 
 
 def rnn_dimension(X,y, train_size):
-    df= X.copy() #TODO
-
     # (X - E(X))/σ(X)
     std_scale = StandardScaler()
     std_scale.fit(X)
@@ -211,16 +207,14 @@ def rnn_dimension(X,y, train_size):
     zero1_scaler = MinMaxScaler(feature_range=(0, 1))
     x = zero1_scaler.fit_transform(X)
 
-    # df[:]= x
-    # df['timestamp'] = X['timestamp']
 
-    # plot_data(df,y)
+    # plot_data(pd.DataFrame(x),y) #TODO 
 
 
     X_samples, y_samples = window(x, y)
     y_samples_cat = to_categorical(np.array(y_samples))
     
-    X_train_rnn, X_test_rnn, y_train_rnn, y_test_rnn = train_test_split(X_samples, y_samples_cat, train_size=train_size, shuffle=False) #TODO shuffle?
+    X_train_rnn, X_test_rnn, y_train_rnn, y_test_rnn = train_test_split(X_samples, y_samples_cat, train_size=train_size, shuffle=True) #TODO shuffle?
     # X_train_rnn, X_test_rnn, y_train_rnn, y_test_rnn = train_test_split(x, to_categorical(np.array(y)), train_size=train_size, shuffle=True) #TODO shuffle?
     
     return X_train_rnn, y_train_rnn, X_test_rnn, y_test_rnn
@@ -263,7 +257,7 @@ def deep_lstm_model(y):
 
 
 
-PROPS       = 5 #TODO X.shape[1] #Properties of the drivers
+PROPS       = 6 #TODO X.shape[1] #Properties of the drivers
 T           = 16
 LR          = 0.1
 EPOCHS      = 50
@@ -277,17 +271,17 @@ def main():
 
     # plot_data(X,y)
 
+    #TODO return acceleration and train again
+
     X_train, y_train, X_test, y_test  = rnn_dimension(X,y, TRAIN_SIZE)
 
-
-
-    model_file = 'mlp_model.keras'
+    model_file = 'LSTM_model.keras'
     if os.path.isfile(model_file):
         mlp = models.load_model(model_file)
-    if True:
-    # else:
-        # mlp = deep_lstm_model(y_test)
-        mlp = mlp_model(y_train)
+    # if True:
+    else:
+        mlp = deep_lstm_model(y_test)
+        # mlp = mlp_model(y_train)
         optimizer = Adam(learning_rate=LR) #TODO add clipvalue=1.0 ?
         mlp.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy']) #loss
         mlp_history = mlp.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE)
@@ -302,15 +296,14 @@ def main():
     print('Test loss:', score[0])
     print('Test accuracy:', score[1])
 
-    #TODO ! - next time- merge data to make SEQUENTIAL - the model should know it's related!
-    df = [[pd.read_csv('test.csv')]]
-    user_props, _ = pre_process_encoder()
-    user = [1 for _ in range(len(user_props)-1)]
-    x, _, _, _ = rnn_dimension(user_props,user, 0.5)
-    x[-1].reshape(1, 16, 8)
-    x[0].reshape(1, 16, 8)
-    print(f'output after training = {mlp.predict(x[-1])} \n {mlp.predict(x[0])}')
 
+    # plot_data(pd.DataFrame(x),y) #TODO 
+
+    
+    print(f'output after training = \n{mlp.predict(X_test)[0][-1]} \n\n {mlp.predict(X_test)[1][-1]}')
+    print(f'\n y test = {y_test[0][-1]} , {y_test[1][-1]}')
+    # results = [window[-1] for window in mlp.predict(X_test)]
+    # plot_data(pd.DataFrame(X_test),y_test)
 
 
 

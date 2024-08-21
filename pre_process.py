@@ -1,7 +1,7 @@
 import numpy as np
 
 T   = 16
-ATR = 8
+ATR = 6
 
 def pre_process(data):
     'Remove columns from data'
@@ -10,6 +10,11 @@ def pre_process(data):
             del d['datetime']
         if 'fuel' in d:
             del d['fuel']
+        if 'speedLimit' in d:
+            del d['speedLimit']        
+        if 'acceleration' in d:
+            del d['acceleration']
+        
     
     if len(data) <= 5 : return np.array([[[0.0 for _ in range(ATR)] for _ in range(T)]])
 
