@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -19,25 +20,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense, BatchNormalization, LSTM, Dropout, Input, Flatten, LayerNormalization
-from keras import layers, models
+from keras import layers
+from keras import models as m
 from keras.optimizers import Adam
 tf.random.set_seed(0)
 
 
-def gpu():
-    devices = tf.config.list_physical_devices()
-    print("\nDevices: ", devices)
 
-    gpus = tf.config.list_physical_devices('GPU')
-    print("\nGPU: ", gpus)
-
-    if gpus:
-        details = tf.config.experimental.get_device_details(gpus[0])
-        print("GPU details: ", details)
-
-
-
-def performance_plot(train_history):
+def performance_plot(train_history, driver):
     # Plotting the training and validation accuracy
     plt.figure(figsize=(12, 5))
 
@@ -61,7 +51,7 @@ def performance_plot(train_history):
 
     # Show the plots
     plt.tight_layout()
-    plt.savefig('training_history.png') 
+    plt.savefig('training_history_'+driver+'.png') 
     plt.show()
 
 def plot_data(x,y):
@@ -87,30 +77,7 @@ def plot_data(x,y):
 
 
 
-    '''
-    # Assuming you have a DataFrame `df` with columns 'time', 'label', and feature columns 'f1', 'f2', ...
-    labels = y.unique()
-
-    for col in X.columns:
-        print(X[col].head())
-
-    for feature in X.columns:
-        plt.figure(figsize=(10, 6))
-        for label in labels:
-            subset =df[df['l abel'] == label]
-            plt.plot(subset['timestamp'], subset[feature], label=f'Label {label}')
-        plt.title(f'Feature {feature} over Time')
-        plt.xlabel('Time')
-        plt.ylabel(feature)
-        plt.legend()
-        plt.show()
-    '''
-
-    
-
-
 def download_firebase_train():
-    storage_dir = [f"drives/2W5Nq5aZ4cP9VA6zEWBbi7FicxE2/", f"drives/lT3ip6zL8gU34vuoONy5UTmWwPg1", f"drives/vcAN0KURuBYtNhztFCJJR9y4EhR2"] # Add new directories (people) here
     local_path = f"/Users/arnoldcheskis/Documents/Projects/Archive/LimudNaim/Driving_project_lesson-LimudNaim/data/"
 
     'Initialize Firebase Admin SDK'
@@ -118,11 +85,12 @@ def download_firebase_train():
     firebase_admin.initialize_app(cred, {'storageBucket': 'car-driver-bc91f.appspot.com'})
 
     bucket  = storage.bucket()
-    for dir_num, dir in enumerate(storage_dir):
+    for driver in Drivers:
+        dir = "drives/" + driver.value
         blobs   = bucket.list_blobs(prefix=dir)
-        os.makedirs(local_path + str(dir_num))
+        os.makedirs(local_path + str(driver.value))
         for i, blob in enumerate(blobs):
-            local = local_path + str(dir_num) + '/' + str(i) + '.csv'
+            local = local_path + str(driver.value) + '/' + str(i) + '.csv'
             blob.download_to_filename(local)
 
 def parse_files():
@@ -139,21 +107,20 @@ def parse_files():
                     if os.path.getsize(file_path) > 0:
                         df = pd.read_csv(csvfile)
                         person.append(df)
-        csv_data.append(person)
+        id = os.path.basename(data_dir) #person's ID
+        csv_data.append((person, id))
     return csv_data
 
-def pre_process_encoder():
-    files = parse_files() #extract objects from files
+def pre_process_encoder(files, driver):
     X = pd.DataFrame()
     y = []
     'Features and labels'
-    for i, person in enumerate(files):
+    for person, id in files:
         for data in person:
             df = pd.DataFrame(data)
 
             x_sample = df.drop(columns=['datetime', 'fuel', 'speedLimit', 'timestamp'] ).dropna()
-
-            y_sample = [i for _ in range(len(x_sample))]
+            y_sample = [1 if id == driver else 0 for _ in range(len(x_sample))]
 
             if "Car_Id" in X.columns:
                 x_sample.drop('Car_Id', axis=1, inplace=True)
@@ -221,89 +188,100 @@ def rnn_dimension(X,y, train_size):
 
 
 
-        
-
-
-def mlp_model(y):
-    mlp = Sequential()
-    #TODO Do not pass an `input_shape`/`input_dim` argument to a layer. When using Sequential models, prefer using an `Input(shape)` object as the first layer in the model instead.
-    mlp.add(Input(shape=(T,PROPS)))
-    mlp.add(Dense(160, activation='relu'))
-    mlp.add(layers.BatchNormalization())
-    mlp.add(layers.Dropout(0.5))
-    mlp.add(Dense(120, activation='relu'))
-    mlp.add(layers.BatchNormalization())
-    mlp.add(Dense(3, activation='softmax'))
-    return mlp
-
-
-
-def deep_lstm_model(y):
+def deep_model():
     model = Sequential(
         [
             Input(shape=(T, PROPS)), #ragged=True
             # LSTM(64, return_sequences=True),
             Dense(120, activation='relu'),
             LayerNormalization(),
-            # LSTM(128, return_sequences=True),
+            # LSTM(128, return_sequences=False),
             Dense(200, activation='relu'),
             LayerNormalization(),
             # Flatten(),
             # Dense(256, activation='relu'), # kernel_initializer='glorot_uniform', bias_initializer='zeros'
-            Dense(3, activation='softmax') #TODO : why y.shape[0] == 16 ?
+            Dense(2, activation='sigmoid')
         ]
     )    
     return model
 
 
 
+def prediction(models, x):
+    predicitons = []
+    for model, id in models:
+        predicitons.append((model.predict(x)[-1,-1,1], id))
+    predicitons = np.array(predicitons)
+    values = predicitons[:,0].astype(float)
+    return 'CAR STOLEN!' if np.max(values) < 0.85 else predicitons[np.argmax(values),1]
+
+
+
+
 PROPS       = 6 #TODO X.shape[1] #Properties of the drivers
 T           = 16
 LR          = 0.1
-EPOCHS      = 50
+EPOCHS      = 10
 TRAIN_SIZE  = 0.85
 BATCH_SIZE  = T
 
-def main():
-    
-    # download_firebase_train() #Call only once to get contents from Firebase
-    X, y = pre_process_encoder() #get raw data in pd.Frame
 
-    # plot_data(X,y)
+
+class Drivers(Enum):
+    d1 = '2W5Nq5aZ4cP9VA6zEWBbi7FicxE2'
+    d2 = 'lT3ip6zL8gU34vuoONy5UTmWwPg1'
+    d3 = 'vcAN0KURuBYtNhztFCJJR9y4EhR2'
+
+
+def main():
+    # download_firebase_train() #Call only once to get contents from Firebase
+    files = parse_files() #extract objects from files
+    
 
     #TODO return acceleration and train again
+    testx = []
+    testy = None
+    label = []
 
-    X_train, y_train, X_test, y_test  = rnn_dimension(X,y, TRAIN_SIZE)
+    models = []
+    for driver in Drivers:
+        X, y = pre_process_encoder(files, driver.value) #get raw data in pd.Frame
+        X_train, y_train, X_test, y_test  = rnn_dimension(X, y, TRAIN_SIZE)
+        testx = X_test[0:1]
+        label = y_test[0:1]
+        testy = driver.value
 
-    model_file = 'LSTM_model.keras'
-    if os.path.isfile(model_file):
-        mlp = models.load_model(model_file)
-    # if True:
-    else:
-        mlp = deep_lstm_model(y_test)
-        # mlp = mlp_model(y_train)
-        optimizer = Adam(learning_rate=LR) #TODO add clipvalue=1.0 ?
-        mlp.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy']) #loss
-        mlp_history = mlp.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE)
-        mlp.save(model_file)
-        performance_plot(mlp_history)
+        model_file = 'Model_' + driver.value + '.keras'
+        if os.path.isfile(model_file):
+            models.append((m.load_model(model_file), driver.value))
+        # if True: #TODO try LSTM again
+        else:         # TODO turn to a function ? 
+            model = deep_model()
+            # model = model()
+            optimizer = Adam(learning_rate=LR) #TODO add clipvalue=1.0 ?
+            model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy']) #loss
+            model_history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE)
+            model.save(model_file)
+            models.append(model)
+            performance_plot(model_history, driver)
 
 
-
-    # TODO turn to a function
-    score = mlp.evaluate(X_test, y_test) # batch_size=50
-
-    print('Test loss:', score[0])
-    print('Test accuracy:', score[1])
-
-
-    # plot_data(pd.DataFrame(x),y) #TODO 
-
+    #TODO eval accuracy error for combined model function
     
-    print(f'output after training = \n{mlp.predict(X_test)[0][-1]} \n\n {mlp.predict(X_test)[1][-1]}')
-    print(f'\n y test = {y_test[0][-1]} , {y_test[1][-1]}')
-    # results = [window[-1] for window in mlp.predict(X_test)]
-    # plot_data(pd.DataFrame(X_test),y_test)
+    #TODO check if without LSTM we only need 16 lines? I will look at the last one anyway. Do we need to give it more than 1 window??
+    # for model in models:
+    #     score = model.evaluate(X_test, y_test) # batch_size=50
+    #     print('Test loss:', score[0])
+    #     print('Test accuracy:', score[1])
+
+    #     print(testy[0].shape)
+    #     print(f'output after training = \n{model.predict(testx[0:1])[0,-1]} \n\n {model.predict(testx[1:2])[0,-1]}')
+    #     print(f'\n y test = {testy[0]} , {testy[1]}')
+    
+    print(testy)
+    print(label[0,-1])
+    print(prediction(models, testx[0:1]))
+    # plot_data(X,y)
 
 
 
