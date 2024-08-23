@@ -278,7 +278,7 @@ def main():
     #     print(f'output after training = \n{model.predict(testx[0:1])[0,-1]} \n\n {model.predict(testx[1:2])[0,-1]}')
     #     print(f'\n y test = {testy[0]} , {testy[1]}')
     
-    print(testy)
+    print(testx[0:1].shape)
     print(label[0,-1])
     print(prediction(models, testx[0:1]))
     # plot_data(X,y)

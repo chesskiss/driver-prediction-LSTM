@@ -7,21 +7,12 @@ from enum import Enum
 import firebase_admin
 from firebase_admin import credentials, db
 from keras import models
-from pre_process import pre_process
+from prediction_model import model_prediction
 
 REAL_TIME_REFERANCE = 'LiveData'
 OBD_REFERENCE       = 'Obd'
-TIMESTAMPS          = 100
 
 obd_dict = {} #{key: value} - key: obd_id, value: row_counter
-
-model_file  = 'LSTM_model.keras'
-try: 
-    model = models.load_model(model_file)
-except FileNotFoundError as e:
-    raise FileNotFoundError('Model not found - add the LSTM_model.keras file to the dir.') from e
-
-
 
 def get_live_data():
     while True:
@@ -42,23 +33,24 @@ def get_live_data():
                     obd_dict[obd_id] = int (list(obd_snapshot[obd_id].keys())[0])
                 print(f'Live drives: {obd_dict.keys()}')
             
-            # lock = threading.Lock()
+            lock = threading.Lock()
             # with lock:
             #     thread = threading.Thread(target=run_algorithm, args=(obd_id,))
             #     thread.start()
-            run_algorithm(obd_id)
+            run_algorithm(obd_id) #TODO delete
 
 
-        time.sleep(20)  # Run this check every 20 seconds
+        time.sleep(5)  # Run this check every 20 seconds
 
 
 def run_algorithm(obd_id):
     data =[]
-    for _ in range(TIMESTAMPS):
+    while True:
         row_index = obd_dict[obd_id]
-        print(f' \nrow index = {row_index} \n')
+        print(f' \nrow index = {row_index} \n') #TODO delete, only for testing
         obd_ref = db.reference(f'{REAL_TIME_REFERANCE}/{obd_id}')
         obd_snapshot = obd_ref.get()
+        print(f'len of obd snap = {len(obd_snapshot)}')
         # print(list(obd_snapshot.keys())[0])
         finished = False
 
@@ -104,26 +96,24 @@ def run_algorithm(obd_id):
 
         uids        = ['2W5Nq5aZ4cP9VA6zEWBbi7FicxE2', 'lT3ip6zL8gU34vuoONy5UTmWwPg1', 'vcAN0KURuBYtNhztFCJJR9y4EhR2']
         
-        # print(f'\n\n our data : \n {data} \n\n')
-        print(f'\n{len(data)}\n')
-        obd_dict[obd_id] += len(obd_snapshot)
-        if len(data) >= 5 :
-            input           = pre_process(data)
-            prediction      = (model.predict(input))[0][-1]
-            driver_result   = uids[np.argmax(prediction)]
+        # print(f'\n{len(data)}\n') #TODO delete
+        obd_dict[obd_id] = len(obd_snapshot)
+
+        print('len data = ', len(data))
+        if len(data) >= 16 :
+            prediction = model_prediction(uids, data)
+            
             
             print(f'prediction= {prediction}' )
 
-            print(f'driver result = \n {driver_result}')
             
-            db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set(driver_result)
+            db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set(prediction)
             #time.sleep(1)
 
         # if max(prediction) > 0.8: #if prediction certainty is greater than 80%
         #     return #TODO do we need to return a value? e.g. driver_result
         # #TODO change while True to a for loop after which car reported stolen (ideal), or add a "forth" driver to the model that will be the thief.
     
-    db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set('STOLEN')
 
 
 def run_algo_server():
