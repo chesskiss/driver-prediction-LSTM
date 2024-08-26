@@ -28,23 +28,24 @@ def pre_process(data):
     X_samples = []
     overlapsize = T//2
 
-    print('shape=', data.shape)  
+    print('before window shape=', data.shape)  
 
     for i in range(0, len(data) , T-overlapsize):
         sample_x = data[i:i+T,:]  # grab from i to i+length
-        if sample_x.shape[0] != T: 
-            sample_x = np.pad(sample_x, ((0, T - len(sample_x)), (0,0)), mode='constant', constant_values=0)
-        X_samples.append(sample_x.tolist()) #TODO why is it less than 884?
+        if sample_x.shape[0] == T: 
+            # sample_x = np.pad(sample_x, ((0, T - len(sample_x)), (0,0)), mode='constant', constant_values=0)
+            X_samples.append(sample_x.tolist()) #TODO why is it less than 884?
 
     return np.array(X_samples)
 
 
 def model_prediction(drivers, data):
     X = pre_process(data) 
-    print(X.shape)
+    print('shape = ', X.shape)
+
     if len(models) == 0:
         for driver in drivers:
-            model_file = 'Model_' + driver + '.keras'
+            model_file = './trying/Model_of_' + driver + '.keras'
             try: 
                 model = m.load_model(model_file)
             except FileNotFoundError as e:
@@ -54,11 +55,9 @@ def model_prediction(drivers, data):
 
     predicitons = []
     for model, id in models:
-        predicitons.append((max(model.predict(X)[:,-1,1]), id))
+        predicitons.append((model.predict(X)[-1,0], id))
     predicitons = np.array(predicitons)
-    print(f'predictions = {predicitons}')
+    print(f'prediction = {predicitons}')
     values = predicitons[:,0].astype(float)
     
     return 'CAR STOLEN!' if np.max(values) < 0.85 else predicitons[np.argmax(values),1]
-
-

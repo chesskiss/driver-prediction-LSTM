@@ -54,6 +54,19 @@ def plot(train_history):
     plt.show()
 
 def gpu():
+    ############## Version 1 ##########################
+    # Check if TensorFlow is using the GPU
+    print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
+    # Simple TensorFlow operation to test GPU usage
+    a = tf.constant([[1.0, 2.0], [3.0, 4.0]])
+    b = tf.constant([[1.0, 1.0], [0.0, 1.0]])
+    c = tf.matmul(a, b)
+
+
+    print("Result of matrix multiplication:\n", c)
+
+    ############## Version 2 ##########################
     devices = tf.config.list_physical_devices()
     print("\nDevices: ", devices)
 
@@ -205,7 +218,7 @@ def simple_run():
 
 
 
-simple_run()
+gpu()
 
 #TODO - very useful : https://machinelearningmastery.com/time-series-prediction-lstm-recurrent-neural-networks-python-keras/
 

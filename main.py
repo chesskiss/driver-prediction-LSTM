@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense, BatchNormalization, LSTM, Dropout, Input, Flatten, LayerNormalization
-from keras import layers
+from keras.callbacks import EarlyStopping, ModelCheckpoint, LearningRateScheduler
 from keras import models as m
 from keras.optimizers import Adam
 tf.random.set_seed(0)
@@ -206,6 +206,23 @@ def deep_model():
     return model
 
 
+def try_model(input_shape):
+    model = Sequential(
+        [
+            LSTM(units=160, input_shape=input_shape, return_sequences=True),
+            Dropout(0.2),
+            BatchNormalization(),
+            LSTM(units=160, return_sequences=True),
+            Dropout(0.2),
+            BatchNormalization(),
+            LSTM(units=160, return_sequences=False),
+            Dropout(0.2),
+            BatchNormalization(),
+            Dense(units=2, activation='sigmoid')
+        ]
+    )
+    return model
+
 
 def prediction(models, x):
     predicitons = []
@@ -233,6 +250,28 @@ class Drivers(Enum):
     d3 = 'vcAN0KURuBYtNhztFCJJR9y4EhR2'
 
 
+
+def callbacks_function(name):
+    early_stop = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min', restore_best_weights=True)
+    monitor = ModelCheckpoint(name, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='min')
+
+
+    def scheduler(epoch, lr):
+        if epoch % 5 == 0:
+            lr = lr / 2
+        return lr
+
+    lr_schedule = LearningRateScheduler(scheduler, verbose=0)
+    return [early_stop, monitor, lr_schedule]
+
+def model_comiple_run(model, X_train, Y_train, X_val, Y_val, model_name):
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    callbacks = callbacks_function(model_name)
+    model_history = model.fit(X_train, Y_train, epochs=50, batch_size=16, validation_data=(X_val, Y_val), callbacks=callbacks, verbose=1)
+    return model_history
+
+
+
 def main():
     # download_firebase_train() #Call only once to get contents from Firebase
     files = parse_files() #extract objects from files
@@ -251,16 +290,21 @@ def main():
         label = y_test[0:1]
         testy = driver.value
 
+        print(f'shapes:\n xt = {X_train.shape} \n yt = {y_train.shape} \n ytest = {y_test.shape}')
+        
+        input_shape = (X_train.shape[1], X_train.shape[2])
+
         model_file = 'Model_' + driver.value + '.keras'
         if os.path.isfile(model_file):
             models.append((m.load_model(model_file), driver.value))
-        # if True: #TODO try LSTM again
-        else:         # TODO turn to a function ? 
-            model = deep_model()
-            # model = model()
+        if True: #TODO try LSTM again
+        # else:         # TODO turn to a function ? 
+            # model = deep_model()
+            model = try_model(input_shape)
             optimizer = Adam(learning_rate=LR) #TODO add clipvalue=1.0 ?
             model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy']) #loss
-            model_history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE)
+            # model_history = model.fit(X_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE)
+            model_history = model_comiple_run(model, X_train, y_train, X_test, y_test, model_file)
             model.save(model_file)
             models.append(model)
             performance_plot(model_history, driver)
