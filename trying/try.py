@@ -211,13 +211,14 @@ def window(X1, y1, T):
 def deep_model(input_shape):
     model = Sequential(
         [
-            LSTM(units=160, input_shape=input_shape, return_sequences=True),
+            Input(shape=(T, PROPS), batch_size=BATCH),
+            LSTM(units=160, stateful=True, return_sequences=True),
             Dropout(0.2),
             BatchNormalization(),
-            LSTM(units=160, return_sequences=True),
+            LSTM(units=160, stateful=True, return_sequences=True),
             Dropout(0.2),
             BatchNormalization(),
-            LSTM(units=160, return_sequences=False),
+            LSTM(units=160, stateful=True, return_sequences=False),
             Dropout(0.2),
             BatchNormalization(),
             Dense(units=2, activation='sigmoid')
@@ -243,7 +244,7 @@ def callbacks_function(name):
 def model_comiple_run(model, X_train, Y_train, X_val, Y_val, model_name):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     callbacks = callbacks_function(model_name)
-    model_history = model.fit(X_train, Y_train, epochs=50, batch_size=16, validation_data=(X_val, Y_val), callbacks=callbacks, verbose=1)
+    model_history = model.fit(X_train, Y_train, epochs=50, batch_size=BATCH, validation_data=(X_val, Y_val), callbacks=callbacks, verbose=1)
     return model_history
 
 def pre_process_encoder(files, driver, T):
@@ -295,8 +296,9 @@ def pre_process_encoder(files, driver, T):
 def prediction(models, x):
     predicitons = []
     for model, id in models:
-        print(f' {id} = {model.predict(x)[-10:,1]}')
-        predicitons.append((model.predict(x)[-1,1], id))
+        print(f' {id} = {model.predict(x[-10:])[:,1]}')
+        print(f' {id} = {model.predict(x[0:])[-10:,1]}')
+        predicitons.append((model.predict(x)[-2,1], id))
     print(f'prediction = {predicitons}')
     predicitons = np.array(predicitons)
     values = predicitons[:,0].astype(float)
@@ -333,7 +335,7 @@ def input(fielname):
 def main():
     files = parse_files()  # extract objects from files
     
-    testx = input('obd_data.csv')
+    testx = input('test.csv')
 
     
     models = []
@@ -343,13 +345,12 @@ def main():
         # print(f"Data shape for driver {driver.value}: X shape = {X.shape}, y shape = {len(y)}")
         # print(f"First few labels for driver {driver.value}: {y[:5]}")  # הדפסת התוויות הראשונות
         
-        X_train, X_test, y_train, y_test = train_test_split(X, to_categorical(y), train_size=TRAIN_SIZE, shuffle=True)        
+        X_train, X_test, y_train, y_test = train_test_split(X, to_categorical(y), train_size=TRAIN_SIZE, shuffle=True)    
         X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, train_size=TRAIN_SIZE, shuffle=True)
 
         # print(f"Training data size for driver {driver.value}: {X_train.shape}, {y_train.shape}")
         # print(f"Testing data size for driver {driver.value}: {X_test.shape}, {y_test.shape}")
         
-        x_train_copy = X_train.copy()
 
         X_train, X_val, X_test = normalization(X_train, X_val, X_test, type='min-max')
         input_shape = (X_train.shape[1], X_train.shape[2])
@@ -371,6 +372,7 @@ def main():
     
         else:
             # print(f"Training and saving model for driver {driver.value}")
+            print(X_train.shape)
             model = deep_model(input_shape)
             model_history = model_comiple_run(model, X_train, y_train, X_val, y_val, model_name)
             model.save(model_name)  # שמירת המודל לאחר האימון
@@ -394,6 +396,7 @@ def main():
 PROPS = 6
 T = 16
 TRAIN_SIZE = 0.85
+BATCH = 16
 
 class Drivers(Enum):
     d1 = '2W5Nq5aZ4cP9VA6zEWBbi7FicxE2'
