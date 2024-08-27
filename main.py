@@ -58,14 +58,14 @@ def plot_data(x,y):
     df = x
     df['driver'] = y
     features = x.columns # List of features to plot
-    df['time'] = range(1, len(df) + 1)
+    # df['time'] = range(1, len(df) + 1)
 
     # Create a FacetGrid with 6 plots (one for each feature)
-    g = sns.FacetGrid(x.melt(id_vars=['time', 'driver'], value_vars=features), 
+    g = sns.FacetGrid(x.melt(id_vars=['count', 'driver'], value_vars=features), 
                     col="variable", hue="driver", col_wrap=3, height=4)
 
     # Map the scatterplot to each facet
-    g.map(sns.scatterplot, "time", "value", alpha=0.7)
+    g.map(sns.scatterplot, "count", "value", alpha=0.7)
 
 
     g.add_legend()
@@ -174,8 +174,9 @@ def rnn_dimension(X,y, train_size):
     zero1_scaler = MinMaxScaler(feature_range=(0, 1))
     x = zero1_scaler.fit_transform(X)
 
+    X.loc[:, :] = x
 
-    # plot_data(pd.DataFrame(x),y) #TODO 
+    plot_data(X,y) #TODO 
 
 
     X_samples, y_samples = window(x, y)
