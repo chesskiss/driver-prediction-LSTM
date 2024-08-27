@@ -244,7 +244,17 @@ def callbacks_function(name):
 def model_comiple_run(model, X_train, Y_train, X_val, Y_val, model_name):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     callbacks = callbacks_function(model_name)
-    model_history = model.fit(X_train, Y_train, epochs=50, batch_size=BATCH, validation_data=(X_val, Y_val), callbacks=callbacks, verbose=1)
+    print(f'{X_train.shape}  {X_val.shape}  {Y_train.shape}  {(type(Y_val))}')
+    
+    # Create a Dataset from your training data
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, Y_train))
+    val_dataset = tf.data.Dataset.from_tensor_slices((X_val, Y_val))
+
+    # Apply batching with `drop_remainder=True` to ensure consistent batch sizes
+    train_dataset = train_dataset.batch(BATCH, drop_remainder=True)
+    val_dataset = val_dataset.batch(BATCH, drop_remainder=True)
+
+    model_history = model.fit(train_dataset, batch_size=BATCH, epochs=50, validation_data=val_dataset, callbacks=callbacks, verbose=1) 
     return model_history
 
 def pre_process_encoder(files, driver, T):
@@ -356,7 +366,7 @@ def main():
         input_shape = (X_train.shape[1], X_train.shape[2])
         
 
-        model_name = f"Model_of_{driver.value}.keras"
+        model_name = f"Model_{driver.value}.keras"
 
         if os.path.isfile(model_name):
             # print(f"Loading model for driver {driver.value} from {model_name}")
@@ -372,9 +382,9 @@ def main():
     
         else:
             # print(f"Training and saving model for driver {driver.value}")
-            print(X_train.shape)
             model = deep_model(input_shape)
             model_history = model_comiple_run(model, X_train, y_train, X_val, y_val, model_name)
+            print('checkpoint after')
             model.save(model_name)  # שמירת המודל לאחר האימון
 
             performance_plot(model_history, driver.value)
@@ -383,7 +393,8 @@ def main():
 
         # print(f"The test was originally labeled for driver: {label}")
 
-        # testx = np.expand_dims(testx[-1], axis=0)
+
+        testx = np.expand_dims(testx[-1], axis=0)
     _, testx = normalization_no_val(x_train_copy, testx)
     print(prediction(models, testx))
     

@@ -35,16 +35,20 @@ def get_live_data():
             
             lock = threading.Lock()
             # with lock:
-            #     thread = threading.Thread(target=run_algorithm, args=(obd_id,))
+                # start_time = time.time()
+                # thread = threading.Thread(target=run_algorithm, args=(obd_id, start_time,))
+
             #     thread.start()
-            run_algorithm(obd_id) #TODO delete
+            start_time = time.time()
+            run_algorithm(obd_id, start_time) #TODO delete
 
 
         time.sleep(5)  # Run this check every 20 seconds
 
 
-def run_algorithm(obd_id):
+def run_algorithm(obd_id, start_time):
     data =[]
+    first5rows = True
     while True:
         row_index = obd_dict[obd_id]
         print(f' \nrow index = {row_index} \n') #TODO delete, only for testing
@@ -98,17 +102,26 @@ def run_algorithm(obd_id):
         
         # print(f'\n{len(data)}\n') #TODO delete
         obd_dict[obd_id] = len(obd_snapshot)
+        
+        if first5rows and len(data)>=5:
+            first5rows = False
+            data = data[5:]
 
         print('len data = ', len(data))
-        if len(data) >= 16 :
-            prediction = model_prediction(uids, data)
-            
-            
-            print(f'prediction= {prediction}' )
 
-            
+        prediction, data = model_prediction(uids, data)
+        print(f'prediction= {prediction}')
+
+        max_speed = max(item['speed'] for item in data)
+        print(f'max speed = {max_speed}')
+        if prediction and (time.time() - start_time >= 20*60 or max_speed > 30):
             db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set(prediction)
-            #time.sleep(1)
+            break
+        else:
+            prediction = prediction if prediction != 'STOLEN' else 'UNKOWN DRIVER'
+            db.reference(OBD_REFERENCE).child(obd_id).child('last_driver').set(prediction)
+
+        #time.sleep(1)
 
         # if max(prediction) > 0.8: #if prediction certainty is greater than 80%
         #     return #TODO do we need to return a value? e.g. driver_result

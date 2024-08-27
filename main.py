@@ -224,15 +224,51 @@ def try_model(input_shape):
     return model
 
 
+
+def input(fielname):
+    df = pd.read_csv(fielname)
+
+    df = df.drop(columns=['datetime', 'fuel', 'speedLimit', 'timestamp']).dropna()
+    
+    data = np.array(df.values)
+
+    'Window'
+    X_samples = []
+    overlapsize = T//2
+
+    for i in range(0, len(data) , T-overlapsize):
+        sample_x = data[i:i+T,:]  # grab from i to i+length
+        if sample_x.shape[0] != T: 
+            sample_x = np.pad(sample_x, ((0, T - len(sample_x)), (0,0)), mode='constant', constant_values=0)
+        X_samples.append(sample_x.tolist()) #TODO why is it less than 884?
+    
+    return np.array(X_samples)
+
+
+
+
 def prediction(models, x):
     predicitons = []
+
     for model, id in models:
-        predicitons.append((model.predict(x)[-1,-1,1], id))
+        predicitons.append((model.predict(x)[-1,1], id))
     predicitons = np.array(predicitons)
     values = predicitons[:,0].astype(float)
     return 'CAR STOLEN!' if np.max(values) < 0.85 else predicitons[np.argmax(values),1]
 
 
+def normalization_no_val(X_train, X_test, type='min-max'):
+    if type == 'min-max':
+        for i in range(len(X_train[0, 0])):
+            train_min, train_max = X_train[:, 0, i].min(), X_train[:, 0, i].max()
+            X_train[:, 0, i] = (X_train[:, 0, i] - train_min) / (train_max - train_min)
+            X_test[:, 0, i] = (X_test[:, 0, i] - train_min) / (train_max - train_min)
+    elif type == 'standardization':
+        for i in range(len(X_train[0, 0])):
+            train_mean, train_std = X_train[:, 0, i].mean(), X_train[:, 0, i].std()
+            X_train[:, 0, i] = (X_train[:, 0, i] - train_mean) / train_std
+            X_test[:, 0, i] = (X_test[:, 0, i] - train_mean) / train_std
+    return X_train, X_test
 
 
 PROPS       = 6 #TODO X.shape[1] #Properties of the drivers
@@ -276,6 +312,7 @@ def main():
     # download_firebase_train() #Call only once to get contents from Firebase
     files = parse_files() #extract objects from files
     
+    testx = input('test.csv')
 
     #TODO return acceleration and train again
     testx = []
@@ -297,8 +334,8 @@ def main():
         model_file = 'Model_' + driver.value + '.keras'
         if os.path.isfile(model_file):
             models.append((m.load_model(model_file), driver.value))
-        if True: #TODO try LSTM again
-        # else:         # TODO turn to a function ? 
+        # if True: #TODO try LSTM again
+        else:         # TODO turn to a function ? 
             # model = deep_model()
             model = try_model(input_shape)
             optimizer = Adam(learning_rate=LR) #TODO add clipvalue=1.0 ?
@@ -322,6 +359,10 @@ def main():
     #     print(f'output after training = \n{model.predict(testx[0:1])[0,-1]} \n\n {model.predict(testx[1:2])[0,-1]}')
     #     print(f'\n y test = {testy[0]} , {testy[1]}')
     
+    testx = np.expand_dims(testx[-1], axis=0)
+    _, testx = normalization_no_val(x_train_copy, testx)
+    print(prediction(models, testx))
+
     print(testx[0:1].shape)
     print(label[0,-1])
     print(prediction(models, testx[0:1]))

@@ -7,6 +7,8 @@ ATR = 6
 
 models = []
 
+means = [0, 0, 0] #TODO
+
 def pre_process(data):
     'Remove columns from data'
     for d in data:
@@ -20,7 +22,7 @@ def pre_process(data):
             del d['acceleration']
         
     
-    if len(data) <= 21 : return np.array([[[0.0 for _ in range(ATR)] for _ in range(T)]])
+    if len(data) <= T : return None
 
     data = np.array([list(row.values()) for row in data[5:]])
 
@@ -41,11 +43,10 @@ def pre_process(data):
 
 def model_prediction(drivers, data):
     X = pre_process(data) 
-    print('shape = ', X.shape)
 
     if len(models) == 0:
         for driver in drivers:
-            model_file = './trying/Model_of_' + driver + '.keras'
+            model_file = 'Model_' + driver + '.keras'
             try: 
                 model = m.load_model(model_file)
             except FileNotFoundError as e:
@@ -55,9 +56,10 @@ def model_prediction(drivers, data):
 
     predicitons = []
     for model, id in models:
-        predicitons.append((model.predict(X)[-1,0], id))
+        print(f'type = {(model.predict(X)[:,0])}')
+        predicitons.append(((model.predict(X)[-1,0]), id))
     predicitons = np.array(predicitons)
     print(f'prediction = {predicitons}')
     values = predicitons[:,0].astype(float)
     
-    return 'CAR STOLEN!' if np.max(values) < 0.85 else predicitons[np.argmax(values),1]
+    return 'CAR STOLEN!' if np.max(values) < 0.85 else predicitons[np.argmax(values),1], data[-T+1:]
