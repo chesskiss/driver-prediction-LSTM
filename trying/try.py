@@ -361,7 +361,7 @@ def main():
         # print(f"Training data size for driver {driver.value}: {X_train.shape}, {y_train.shape}")
         # print(f"Testing data size for driver {driver.value}: {X_test.shape}, {y_test.shape}")
         
-
+        x_train_copy = X_train.copy()
         X_train, X_val, X_test = normalization(X_train, X_val, X_test, type='min-max')
         input_shape = (X_train.shape[1], X_train.shape[2])
         
