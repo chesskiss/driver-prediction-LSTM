@@ -57,7 +57,7 @@ def model_prediction(drivers, data):
     predicitons = []
     for model, id in models:
         print(f'type = {(model.predict(X)[:,0])}')
-        predicitons.append(((model.predict(X)[-1,0]), id))
+        predicitons.append(((np.mean(model.predict(X)[:,1])), id))
     predicitons = np.array(predicitons)
     print(f'prediction = {predicitons}')
     values = predicitons[:,0].astype(float)
